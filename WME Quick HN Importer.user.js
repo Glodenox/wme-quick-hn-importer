@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.0
+// @version      1.1
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -84,7 +84,8 @@
         return response.text();
       }).then((text) => {
         var features = [];
-        var currentHouseNumbers =  W.model.segmentHouseNumbers.getObjectArray().map((houseNumber) => houseNumber.attributes.number);
+        var selectedSegmentIDs = segmentSelection.segments.map((segment) => segment.attributes.id);
+        var currentHouseNumbers =  W.model.segmentHouseNumbers.getObjectArray().filter((houseNumber) => selectedSegmentIDs.indexOf(houseNumber.attributes.segID) != -1).map((houseNumber) => houseNumber.attributes.number);
         text.split("\n").forEach((line) => {
           var values = line.split(',');
           if (values.length == 4) { // House number
@@ -109,6 +110,15 @@
       });
     };
 
+    var exitMessage = document.createElement('div');
+    exitMessage.style.position = 'absolute';
+    exitMessage.style.top = '35px';
+    exitMessage.style.width = '100%';
+    exitMessage.style.pointerEvents = 'none';
+    exitMessage.style.display = 'none';
+    exitMessage.innerHTML = `<div style="margin:0 auto; max-width:200px; text-align:center; background:rgba(0, 0, 0, 0.5); color:white; border-radius:3px; padding:5px 15px;">Press ESC to stop adding house numbers</div>`;
+    document.getElementById('map').appendChild(exitMessage);
+
     var editButtons = document.getElementById('edit-buttons');
     var menuToggle = document.createElement('div');
     menuToggle.className = 'toolbar-button toolbar-button-with-label toolbar-button-with-icon';
@@ -117,7 +127,7 @@
         <wz-checkbox name="enableQuickHNImporter" value="off" checked=""></wz-checkbox>
       </div>
       <div class="item-container" style="padding-left: 0;">
-        <span class="menu-title">Enable Quick HN importer</span>
+        <span class="menu-title">Quick HN importer</span>
       </div>`;
     var toggle = menuToggle.querySelector('wz-checkbox');
     menuToggle.querySelector('.item-container').addEventListener('click', () => {
@@ -135,25 +145,30 @@
       }
     });
 
+    var houseNumbersLayer = null;
     var houseNumberObserver = new MutationObserver((mutations) => {
       if (!toggle.checked) {
+        exitMessage.style.display = 'none';
         return;
       }
-      mutations.filter((mutation) => mutation.target.classList.contains('content')).forEach((mutation) => {
-        if (!mutation.target.classList.contains('new') && mutation.target.classList.contains('active')) {
-          var numberInput = mutation.target.querySelector('input.number');
-          if (numberInput.value == '') { // Do not interfere when adjusting an existing house number
-            // Find nearest house number
-            var locationLonLat = W.map.getLayersByName('houseNumberMarkers')[0].markers.find((marker) => marker.isNew).lonlat;
-            var location = new OpenLayers.Geometry.Point(locationLonLat.lon, locationLonLat.lat);
-            var nearestFeature = layer.features.filter((feature) => !feature.attributes.processed).reduce((prev, feature) => prev.geometry.distanceTo(location) > feature.geometry.distanceTo(location) ? feature : prev);
-            // Fill in data and prepare for next click
-            if (nearestFeature) {
-              numberInput.value = nearestFeature.data.number;
-              numberInput.dispatchEvent(new Event('change', { 'bubbles': true })); // dispatch event so WME sees the content as changed
-              editButtons.querySelector('.add-house-number').click();
-              nearestFeature.attributes.processed = true;
-              layer.redraw();
+      exitMessage.style.display = houseNumbersLayer.querySelector('div.content.active.new') ? 'block' : 'none';
+      mutations.forEach((mutation) => {
+        if (mutation.type == 'attributes') {
+          if (mutation.target.classList.contains('content') && !mutation.target.classList.contains('new') && mutation.target.classList.contains('active')) {
+            var numberInput = mutation.target.querySelector('input.number');
+            if (numberInput.value == '') { // Do not interfere when adjusting an existing house number
+              // Find nearest house number
+              var locationLonLat = W.map.getLayersByName('houseNumberMarkers')[0].markers.find((marker) => marker.isNew).lonlat;
+              var location = new OpenLayers.Geometry.Point(locationLonLat.lon, locationLonLat.lat);
+              var nearestFeature = layer.features.filter((feature) => !feature.attributes.processed).reduce((prev, feature) => prev.geometry.distanceTo(location) > feature.geometry.distanceTo(location) ? feature : prev);
+              // Fill in data and prepare for next click
+              if (nearestFeature) {
+                numberInput.value = nearestFeature.data.number;
+                numberInput.dispatchEvent(new Event('change', { 'bubbles': true })); // dispatch event so WME sees the content as changed
+                editButtons.querySelector('.add-house-number').click();
+                nearestFeature.attributes.processed = true;
+                layer.redraw();
+              }
             }
           }
         }
@@ -163,7 +178,8 @@
       // If we've entered house number mode
       if (editButtons.querySelector('.add-house-number') != null) {
         editButtons.childNodes[0].insertBefore(menuToggle, editButtons.querySelector('.waze-icon-exit'));
-        houseNumberObserver.observe(document.querySelector('div.olLayerDiv.house-numbers-layer'), { subtree: true, attributes: true });
+        houseNumbersLayer = document.querySelector('div.olLayerDiv.house-numbers-layer');
+        houseNumberObserver.observe(houseNumbersLayer, { subtree: true, attributes: true });
         if (toggle.checked) {
           updateLayer();
           layer.setVisibility(true);
