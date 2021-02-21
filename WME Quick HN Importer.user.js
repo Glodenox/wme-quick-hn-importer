@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2
+// @version      1.2.1
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -215,18 +215,25 @@
       var multiAction = new MultiAction();
       multiAction.setModel(W.model);
       multiAction._description = 'Nudge segment';
-      var nodeToNudge = W.selectionManager.getSegmentSelection().segments[0].getFromNode();
-      var segments = nodeToNudge.getSegmentIds().map((id) => W.model.segments.getObjectById(id));
-      var segmentGeometries = {};
-      segments.forEach((segment) => {
-        var newGeometry = segment.geometry.clone();
-        newGeometry.components.filter((component) => component.x == nodeToNudge.geometry.x && component.y == nodeToNudge.geometry.y).x += 0.0001;
-        multiAction.doSubAction(new UpdateSegmentGeometry(segment, segment.geometry.clone(), newGeometry));
-        segmentGeometries[segment.attributes.id] = segment.geometry.clone();
-      });
-      var newGeometry = nodeToNudge.geometry.clone();
-      newGeometry.x += 0.0001;
-      multiAction.doSubAction(new MoveNode(nodeToNudge, nodeToNudge.geometry.clone(), newGeometry, segmentGeometries, {}));
+      var selectedSegment = W.selectionManager.getSegmentSelection().segments[0];
+      if (selectedSegment.geometry.components.length > 2) {
+        var newGeometry = selectedSegment.geometry.clone();
+        newGeometry.components[1].x += 0.0001;
+        multiAction.doSubAction(new UpdateSegmentGeometry(selectedSegment, selectedSegment.geometry.clone(), newGeometry));
+      } else {
+        var nodeToNudge = W.selectionManager.getSegmentSelection().segments[0].getFromNode();
+        var segments = nodeToNudge.getSegmentIds().map((id) => W.model.segments.getObjectById(id));
+        var segmentGeometries = {};
+        segments.forEach((segment) => {
+          var newGeometry = segment.geometry.clone();
+          newGeometry.components.filter((component) => component.x == nodeToNudge.geometry.x && component.y == nodeToNudge.geometry.y).x += 0.0001;
+          multiAction.doSubAction(new UpdateSegmentGeometry(segment, segment.geometry.clone(), newGeometry));
+          segmentGeometries[segment.attributes.id] = segment.geometry.clone();
+        });
+        var newGeometry = nodeToNudge.geometry.clone();
+        newGeometry.x += 0.0001;
+        multiAction.doSubAction(new MoveNode(nodeToNudge, nodeToNudge.geometry.clone(), newGeometry, segmentGeometries, {}));
+      }
       W.model.actionManager.add(multiAction);
     });
     var editPanelObserver = new MutationObserver(() => {
