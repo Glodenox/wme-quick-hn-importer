@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.1
+// @version      1.2
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -84,8 +84,7 @@
         return response.text();
       }).then((text) => {
         var features = [];
-        var selectedSegmentIDs = segmentSelection.segments.map((segment) => segment.attributes.id);
-        var currentHouseNumbers =  W.model.segmentHouseNumbers.getObjectArray().filter((houseNumber) => selectedSegmentIDs.indexOf(houseNumber.attributes.segID) != -1).map((houseNumber) => houseNumber.attributes.number);
+        var currentHouseNumbers = getSelectionHNs();
         text.split("\n").forEach((line) => {
           var values = line.split(',');
           if (values.length == 4) { // House number
@@ -146,14 +145,18 @@
     });
 
     var houseNumbersLayer = null;
+    // Observe the house number markers to automatically insert the data
     var houseNumberObserver = new MutationObserver((mutations) => {
       if (!toggle.checked) {
         exitMessage.style.display = 'none';
         return;
       }
       exitMessage.style.display = houseNumbersLayer.querySelector('div.content.active.new') ? 'block' : 'none';
+      var refreshProcessedState = false;
       mutations.forEach((mutation) => {
-        if (mutation.type == 'attributes') {
+        if (mutation.type == 'childList') {
+          refreshProcessedState = true;
+        } else if (mutation.type == 'attributes') {
           if (mutation.target.classList.contains('content') && !mutation.target.classList.contains('new') && mutation.target.classList.contains('active')) {
             var numberInput = mutation.target.querySelector('input.number');
             if (numberInput.value == '') { // Do not interfere when adjusting an existing house number
@@ -162,7 +165,7 @@
               var location = new OpenLayers.Geometry.Point(locationLonLat.lon, locationLonLat.lat);
               var nearestFeature = layer.features.filter((feature) => !feature.attributes.processed).reduce((prev, feature) => prev.geometry.distanceTo(location) > feature.geometry.distanceTo(location) ? feature : prev);
               // Fill in data and prepare for next click
-              if (nearestFeature) {
+              if (nearestFeature && nearestFeature.geometry.distanceTo(location) < 50) {
                 numberInput.value = nearestFeature.data.number;
                 numberInput.dispatchEvent(new Event('change', { 'bubbles': true })); // dispatch event so WME sees the content as changed
                 editButtons.querySelector('.add-house-number').click();
@@ -173,13 +176,20 @@
           }
         }
       });
+      if (refreshProcessedState) {
+        // Refresh the processed state when a house number gets removed
+        var currentHouseNumbers = getSelectionHNs();
+        layer.features.forEach((feature) => feature.attributes.processed = currentHouseNumbers.indexOf(feature.attributes.number) != -1);
+        layer.redraw();
+      }
     });
+
+    // Observe house number mode to insert the "Quick HN Importer" checkbox
     var menuObserver = new MutationObserver(() => {
-      // If we've entered house number mode
       if (editButtons.querySelector('.add-house-number') != null) {
         editButtons.childNodes[0].insertBefore(menuToggle, editButtons.querySelector('.waze-icon-exit'));
         houseNumbersLayer = document.querySelector('div.olLayerDiv.house-numbers-layer');
-        houseNumberObserver.observe(houseNumbersLayer, { subtree: true, attributes: true });
+        houseNumberObserver.observe(houseNumbersLayer, { childList: true, subtree: true, attributes: true });
         if (toggle.checked) {
           updateLayer();
           layer.setVisibility(true);
@@ -192,6 +202,48 @@
       }
     });
     menuObserver.observe(editButtons, { childList: true });
+
+    // Observe the edit panel's contents to add the "Nudge segment" button
+    var nudgeButton = document.createElement('button');
+    nudgeButton.className = 'action-button waze-btn waze-btn-white';
+    nudgeButton.style.marginTop = '14px';
+    nudgeButton.textContent = 'Nudge segment';
+    nudgeButton.addEventListener('click', () => {
+      var UpdateSegmentGeometry = require('Waze/Action/UpdateSegmentGeometry');
+      var MoveNode = require("Waze/Action/MoveNode");
+      var MultiAction = require("Waze/Action/MultiAction");
+      var multiAction = new MultiAction();
+      multiAction.setModel(W.model);
+      multiAction._description = 'Nudge segment';
+      var nodeToNudge = W.selectionManager.getSegmentSelection().segments[0].getFromNode();
+      var segments = nodeToNudge.getSegmentIds().map((id) => W.model.segments.getObjectById(id));
+      var segmentGeometries = {};
+      segments.forEach((segment) => {
+        var newGeometry = segment.geometry.clone();
+        newGeometry.components.filter((component) => component.x == nodeToNudge.geometry.x && component.y == nodeToNudge.geometry.y).x += 0.0001;
+        multiAction.doSubAction(new UpdateSegmentGeometry(segment, segment.geometry.clone(), newGeometry));
+        segmentGeometries[segment.attributes.id] = segment.geometry.clone();
+      });
+      var newGeometry = nodeToNudge.geometry.clone();
+      newGeometry.x += 0.0001;
+      multiAction.doSubAction(new MoveNode(nodeToNudge, nodeToNudge.geometry.clone(), newGeometry, segmentGeometries, {}));
+      W.model.actionManager.add(multiAction);
+    });
+    var editPanelObserver = new MutationObserver(() => {
+      if (document.getElementById('edit-panel').style.display == 'none') {
+        return;
+      }
+      var editPanelButtons = document.querySelector('#segment-edit-general .form-group.more-actions');
+      if (editPanelButtons) {
+        editPanelButtons.appendChild(nudgeButton);
+      }
+    });
+    editPanelObserver.observe(document.getElementById('edit-panel'), { attributes: true });
+  }
+
+  function getSelectionHNs() {
+    var selectedSegmentIDs = W.selectionManager.getSegmentSelection().segments.map((segment) => segment.attributes.id);
+    return W.model.segmentHouseNumbers.getObjectArray().filter((houseNumber) => selectedSegmentIDs.indexOf(houseNumber.attributes.segID) != -1).map((houseNumber) => houseNumber.attributes.number);
   }
 
   function log(message) {
