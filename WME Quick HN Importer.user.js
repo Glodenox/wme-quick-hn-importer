@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -26,7 +26,7 @@
       log('user-info element not yet available, page still loading');
       return;
     }
-    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || document.getElementById('edit-buttons') == null) {
+    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || document.getElementById('primary-toolbar') == null) {
       setTimeout(init, 300);
       return;
     }
@@ -118,7 +118,7 @@
     exitMessage.innerHTML = `<div style="margin:0 auto; max-width:200px; text-align:center; background:rgba(0, 0, 0, 0.5); color:white; border-radius:3px; padding:5px 15px;">Press ESC to stop adding house numbers</div>`;
     document.getElementById('map').appendChild(exitMessage);
 
-    var editButtons = document.getElementById('edit-buttons');
+    var editButtons = document.getElementById('primary-toolbar');
     var menuToggle = document.createElement('div');
     menuToggle.className = 'toolbar-button toolbar-button-with-label toolbar-button-with-icon';
     menuToggle.innerHTML = `
