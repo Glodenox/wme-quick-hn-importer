@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.2
+// @version      1.2.3
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -187,6 +187,7 @@
     // Observe house number mode to insert the "Quick HN Importer" checkbox
     var menuObserver = new MutationObserver(() => {
       if (editButtons.querySelector('.add-house-number') != null) {
+        document.getElementById('search').style.display = 'none';
         editButtons.childNodes[0].insertBefore(menuToggle, editButtons.querySelector('.waze-icon-exit'));
         houseNumbersLayer = document.querySelector('div.olLayerDiv.house-numbers-layer');
         houseNumberObserver.observe(houseNumbersLayer, { childList: true, subtree: true, attributes: true });
@@ -195,6 +196,7 @@
           layer.setVisibility(true);
         }
       } else {
+        document.getElementById('search').style.display = null;
         layer.setVisibility(false);
         layer.removeAllFeatures();
         streets = {};
