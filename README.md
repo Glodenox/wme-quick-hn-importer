@@ -4,7 +4,7 @@ This userscript augments the [Waze Map Editor](https://www.waze.com/editor/) by 
 
 ### Currently supported regions
 
-- Flanders (Belgium)
+- Belgium
 
 ## Installation instructions
 
