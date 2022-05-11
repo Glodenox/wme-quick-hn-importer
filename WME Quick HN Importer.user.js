@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.3
+// @version      1.2.4
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
-// @grant        none
+// @connect      www.wazebelgium.be
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
-/* global W, OpenLayers */
+/* global W, OpenLayers, I18n, require */
 
 (function() {
   'use strict';
@@ -77,35 +78,35 @@
       }
       var bounds = null;
       segmentSelection.segments.forEach((segment) => bounds == null ? bounds = segment.attributes.geometry.bounds : bounds.extend(segment.attributes.geometry.bounds));
-      fetch(`https://www.wazebelgium.be/quick-hn-import/?left=${Math.floor(bounds.left - 200)}&top=${Math.floor(bounds.top + 200)}&right=${Math.floor(bounds.right + 200)}&bottom=${Math.floor(bounds.bottom - 200)}`).then((response) => {
-        if (!response.ok) {
-          console.error(response);
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: `https://www.wazebelgium.be/quick-hn-import/?left=${Math.floor(bounds.left - 200)}&top=${Math.floor(bounds.top + 200)}&right=${Math.floor(bounds.right + 200)}&bottom=${Math.floor(bounds.bottom - 200)}`,
+        onload: function(response){
+          var features = [];
+          var currentHouseNumbers = getSelectionHNs();
+          response.responseText.split("\n").forEach((line) => {
+            var values = line.split(',');
+            if (values.length == 4) { // House number
+              features.push(new OpenLayers.Feature.Vector(new OpenLayers.Geometry.Point(values[0], values[1]), {
+                number: values[2],
+                street: values[3],
+                processed: currentHouseNumbers.indexOf(values[2]) != -1
+              }));
+            } else if (values.length == 2) { // Street name
+              streets[values[1]] = values[0];
+              streetNames[values[0]] = values[1];
+            }
+          });
+          var streetIds = segmentSelection.segments[0].attributes.streetIDs;
+          streetIds.push(segmentSelection.segments[0].attributes.primaryStreetID);
+          var selectedStreetNames = W.model.streets.getByIds(streetIds).map((street) => street.name);
+          var matchingStreetName = selectedStreetNames.find((streetName) => streets[streetName] != undefined);
+          currentStreetId = streets[matchingStreetName];
+          layer.addFeatures(features);
+        },
+        onerror: (error) => {
+          console.error('Error', error);
         }
-        return response.text();
-      }).then((text) => {
-        var features = [];
-        var currentHouseNumbers = getSelectionHNs();
-        text.split("\n").forEach((line) => {
-          var values = line.split(',');
-          if (values.length == 4) { // House number
-            features.push(new OpenLayers.Feature.Vector(new OpenLayers.Geometry.Point(values[0], values[1]), {
-              number: values[2],
-              street: values[3],
-              processed: currentHouseNumbers.indexOf(values[2]) != -1
-            }));
-          } else if (values.length == 2) { // Street name
-            streets[values[1]] = values[0];
-            streetNames[values[0]] = values[1];
-          }
-        });
-        var streetIds = segmentSelection.segments[0].attributes.streetIDs;
-        streetIds.push(segmentSelection.segments[0].attributes.primaryStreetID);
-        var selectedStreetNames = W.model.streets.getByIds(streetIds).map((street) => street.name);
-        var matchingStreetName = selectedStreetNames.find((streetName) => streets[streetName] != undefined);
-        currentStreetId = streets[matchingStreetName];
-        layer.addFeatures(features);
-      }).catch((error) => {
-        console.error('Error', error);
       });
     };
 
@@ -219,7 +220,7 @@
       multiAction._description = 'Nudge segment';
       var selectedSegment = W.selectionManager.getSegmentSelection().segments[0];
       if (selectedSegment.geometry.components.length > 2) {
-        var newGeometry = selectedSegment.geometry.clone();
+        let newGeometry = selectedSegment.geometry.clone();
         newGeometry.components[1].x += 0.0001;
         multiAction.doSubAction(new UpdateSegmentGeometry(selectedSegment, selectedSegment.geometry.clone(), newGeometry));
       } else {
@@ -227,12 +228,12 @@
         var segments = nodeToNudge.getSegmentIds().map((id) => W.model.segments.getObjectById(id));
         var segmentGeometries = {};
         segments.forEach((segment) => {
-          var newGeometry = segment.geometry.clone();
+          let newGeometry = segment.geometry.clone();
           newGeometry.components.filter((component) => component.x == nodeToNudge.geometry.x && component.y == nodeToNudge.geometry.y).x += 0.0001;
           multiAction.doSubAction(new UpdateSegmentGeometry(segment, segment.geometry.clone(), newGeometry));
           segmentGeometries[segment.attributes.id] = segment.geometry.clone();
         });
-        var newGeometry = nodeToNudge.geometry.clone();
+        let newGeometry = nodeToNudge.geometry.clone();
         newGeometry.x += 0.0001;
         multiAction.doSubAction(new MoveNode(nodeToNudge, nodeToNudge.geometry.clone(), newGeometry, segmentGeometries, {}));
       }
