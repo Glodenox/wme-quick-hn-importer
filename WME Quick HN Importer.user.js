@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.4
+// @version      1.2.5
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -70,12 +70,31 @@
     layer.setVisibility(false);
     W.map.addLayer(layer);
 
+    var exitMessage = document.createElement('div');
+    exitMessage.style.position = 'absolute';
+    exitMessage.style.top = '35px';
+    exitMessage.style.width = '100%';
+    exitMessage.style.pointerEvents = 'none';
+    exitMessage.style.display = 'none';
+    exitMessage.innerHTML = `<div style="margin:0 auto; max-width:200px; text-align:center; background:rgba(0, 0, 0, 0.5); color:white; border-radius:3px; padding:5px 15px;">Press ESC to stop adding house numbers</div>`;
+    document.getElementById('map').appendChild(exitMessage);
+
+    var loadingMessage = document.createElement('div');
+    loadingMessage.style.position = 'absolute';
+    loadingMessage.style.bottom = '35px';
+    loadingMessage.style.width = '100%';
+    loadingMessage.style.pointerEvents = 'none';
+    loadingMessage.style.display = 'none';
+    loadingMessage.innerHTML = `<div style="margin:0 auto; max-width:300px; text-align:center; background:rgba(0, 0, 0, 0.5); color:white; border-radius:3px; padding:5px 15px;"><i class="fa fa-pulse fa-spinner"></i> Loading address points</div>`;
+    document.getElementById('map').appendChild(loadingMessage);
+
     var streets = {}; // Container for all currently loaded street names
     var updateLayer = () => {
       var segmentSelection = W.selectionManager.getSegmentSelection();
       if (!segmentSelection.segments || segmentSelection.segments.length == 0) {
         return;
       }
+      loadingMessage.style.display = null;
       var bounds = null;
       segmentSelection.segments.forEach((segment) => bounds == null ? bounds = segment.attributes.geometry.bounds : bounds.extend(segment.attributes.geometry.bounds));
       GM_xmlhttpRequest({
@@ -103,39 +122,21 @@
           var matchingStreetName = selectedStreetNames.find((streetName) => streets[streetName] != undefined);
           currentStreetId = streets[matchingStreetName];
           layer.addFeatures(features);
+          loadingMessage.style.display = 'none';
         },
         onerror: (error) => {
           console.error('Error', error);
+          loadingMessage.style.display = 'none';
         }
       });
     };
 
-    var exitMessage = document.createElement('div');
-    exitMessage.style.position = 'absolute';
-    exitMessage.style.top = '35px';
-    exitMessage.style.width = '100%';
-    exitMessage.style.pointerEvents = 'none';
-    exitMessage.style.display = 'none';
-    exitMessage.innerHTML = `<div style="margin:0 auto; max-width:200px; text-align:center; background:rgba(0, 0, 0, 0.5); color:white; border-radius:3px; padding:5px 15px;">Press ESC to stop adding house numbers</div>`;
-    document.getElementById('map').appendChild(exitMessage);
-
     var editButtons = document.getElementById('primary-toolbar');
-    var menuToggle = document.createElement('div');
-    menuToggle.className = 'toolbar-button toolbar-button-with-label toolbar-button-with-icon';
-    menuToggle.innerHTML = `
-      <div class="item-icon" style="margin-left: 16px;">
-        <wz-checkbox name="enableQuickHNImporter" value="off" checked=""></wz-checkbox>
-      </div>
-      <div class="item-container" style="padding-left: 0;">
-        <span class="menu-title">Quick HN importer</span>
-      </div>`;
-    var toggle = menuToggle.querySelector('wz-checkbox');
-    menuToggle.querySelector('.item-container').addEventListener('click', () => {
-      toggle.checked = !toggle.checked;
-      toggle.dispatchEvent(new Event('change', { 'bubbles': true }));
-    });
-    toggle.checked = false;
-    toggle.addEventListener('change', (e) => {
+    var menuToggle = document.createElement('wz-checkbox');
+    menuToggle.style.display = 'none';
+    menuToggle.style.alignItems = 'center';
+    menuToggle.textContent = "Quick HN importer";
+    menuToggle.addEventListener('click', (e) => {
       if (layer.features.length == 0) {
         updateLayer();
       }
@@ -144,11 +145,22 @@
         editButtons.querySelector('.add-house-number').click();
       }
     });
+    var menuSheet = new CSSStyleSheet();
+    menuSheet.replaceSync(`
+    label.wz-checkbox slot {
+      font-weight: 500;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+      font-family: "Waze Boing", "Waze Boing HB", "Rubik", sans-serif;
+    }
+    `);
+    menuToggle.shadowRoot.adoptedStyleSheets.push(menuSheet);
+    editButtons.querySelector('#search').after(menuToggle);
 
     var houseNumbersLayer = null;
     // Observe the house number markers to automatically insert the data
     var houseNumberObserver = new MutationObserver((mutations) => {
-      if (!toggle.checked) {
+      if (menuToggle.value != 'on') {
         exitMessage.style.display = 'none';
         return;
       }
@@ -189,15 +201,16 @@
     var menuObserver = new MutationObserver(() => {
       if (editButtons.querySelector('.add-house-number') != null) {
         document.getElementById('search').style.display = 'none';
-        editButtons.childNodes[0].insertBefore(menuToggle, editButtons.querySelector('.waze-icon-exit'));
+        menuToggle.style.display = 'inline-flex';
         houseNumbersLayer = document.querySelector('div.olLayerDiv.house-numbers-layer');
         houseNumberObserver.observe(houseNumbersLayer, { childList: true, subtree: true, attributes: true });
-        if (toggle.checked) {
+        if (menuToggle.value == 'on') {
           updateLayer();
           layer.setVisibility(true);
         }
       } else {
         document.getElementById('search').style.display = null;
+        menuToggle.style.display = 'none';
         layer.setVisibility(false);
         layer.removeAllFeatures();
         streets = {};
