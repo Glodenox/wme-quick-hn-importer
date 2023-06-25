@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.5
+// @version      1.2.6
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -175,16 +175,27 @@
             var numberInput = mutation.target.querySelector('input.number');
             if (numberInput.value == '') { // Do not interfere when adjusting an existing house number
               // Find nearest house number
-              var locationLonLat = W.map.getLayersByName('houseNumberMarkers')[0].markers.find((marker) => marker.isNew).lonlat;
+              var houseNumberMarkers = W.map.getLayers().find(layer => layer.name == 'houseNumberMarkers' || layer.name == 'houseNumbersMapEditorMarkers');
+              let isNewHNLayout = houseNumberMarkers.name == 'houseNumbersMapEditorMarkers';
+              var locationLonLat = houseNumberMarkers.markers.find((marker) => isNewHNLayout ? marker.element.classList.contains('is-active') : marker.isNew).lonlat;
               var location = new OpenLayers.Geometry.Point(locationLonLat.lon, locationLonLat.lat);
               var nearestFeature = layer.features.filter((feature) => !feature.attributes.processed).reduce((prev, feature) => prev.geometry.distanceTo(location) > feature.geometry.distanceTo(location) ? feature : prev);
               // Fill in data and prepare for next click
               if (nearestFeature && nearestFeature.geometry.distanceTo(location) < 50) {
-                numberInput.value = nearestFeature.data.number;
-                numberInput.dispatchEvent(new Event('change', { 'bubbles': true })); // dispatch event so WME sees the content as changed
-                editButtons.querySelector('.add-house-number').click();
+                if (isNewHNLayout) {
+                  let setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                  setValue.call(numberInput, nearestFeature.data.number);
+                  // dispatch event so React sees the content as changed
+                  numberInput.dispatchEvent(new InputEvent('input', { 'bubbles': true }));
+                  numberInput.blur();
+                } else {
+                  numberInput.value = nearestFeature.data.number;
+                  // dispatch event so WME sees the content as changed
+                  numberInput.dispatchEvent(new Event('change', { 'bubbles': true }));
+                }
                 nearestFeature.attributes.processed = true;
                 layer.redraw();
+                editButtons.querySelector('.add-house-number').click();
               }
             }
           }
