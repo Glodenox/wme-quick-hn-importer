@@ -133,6 +133,7 @@
 
     var editButtons = document.getElementById('primary-toolbar');
     var menuToggle = document.createElement('wz-checkbox');
+    menuToggle.checked = false;
     menuToggle.style.display = 'none';
     menuToggle.style.alignItems = 'center';
     menuToggle.textContent = "Quick HN importer";
@@ -160,7 +161,7 @@
     var houseNumbersLayer = null;
     // Observe the house number markers to automatically insert the data
     var houseNumberObserver = new MutationObserver((mutations) => {
-      if (menuToggle.value != 'on') {
+      if (!menuToggle.checked) {
         exitMessage.style.display = 'none';
         return;
       }
@@ -204,7 +205,7 @@
         menuToggle.style.display = 'inline-flex';
         houseNumbersLayer = document.querySelector('div.olLayerDiv.house-numbers-layer');
         houseNumberObserver.observe(houseNumbersLayer, { childList: true, subtree: true, attributes: true });
-        if (menuToggle.value == 'on') {
+        if (menuToggle.checked) {
           updateLayer();
           layer.setVisibility(true);
         }
