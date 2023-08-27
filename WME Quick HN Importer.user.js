@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.6
+// @version      1.2.7
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -118,7 +118,7 @@
           });
           var streetIds = segmentSelection.segments[0].attributes.streetIDs;
           streetIds.push(segmentSelection.segments[0].attributes.primaryStreetID);
-          var selectedStreetNames = W.model.streets.getByIds(streetIds).map((street) => street.name);
+          var selectedStreetNames = W.model.streets.getByIds(streetIds).map((street) => street.attributes.name);
           var matchingStreetName = selectedStreetNames.find((streetName) => streets[streetName] != undefined);
           currentStreetId = streets[matchingStreetName];
           layer.addFeatures(features);
@@ -150,7 +150,7 @@
     menuSheet.replaceSync(`
     label.wz-checkbox slot {
       font-weight: 500;
-      font-size: 15px;
+      font-size: 14px;
       letter-spacing: 0.3px;
       font-family: "Waze Boing", "Waze Boing HB", "Rubik", sans-serif;
     }
@@ -166,33 +166,26 @@
         return;
       }
       exitMessage.style.display = houseNumbersLayer.querySelector('div.content.active.new') ? 'block' : 'none';
-      var refreshProcessedState = false;
+      let changeTally = 0;
       mutations.forEach((mutation) => {
         if (mutation.type == 'childList') {
-          refreshProcessedState = true;
+          changeTally += mutation.addedNodes.length - mutation.removedNodes.length;
         } else if (mutation.type == 'attributes') {
           if (mutation.target.classList.contains('content') && !mutation.target.classList.contains('new') && mutation.target.classList.contains('active')) {
             var numberInput = mutation.target.querySelector('input.number');
             if (numberInput.value == '') { // Do not interfere when adjusting an existing house number
               // Find nearest house number
-              var houseNumberMarkers = W.map.getLayers().find(layer => layer.name == 'houseNumberMarkers' || layer.name == 'houseNumbersMapEditorMarkers');
-              let isNewHNLayout = houseNumberMarkers.name == 'houseNumbersMapEditorMarkers';
-              var locationLonLat = houseNumberMarkers.markers.find((marker) => isNewHNLayout ? marker.element.classList.contains('is-active') : marker.isNew).lonlat;
+              var houseNumberMarkers = W.map.getLayerByName('houseNumbersMapEditorMarkers');
+              var locationLonLat = houseNumberMarkers.markers.find((marker) => marker.element.classList.contains('is-active')).lonlat;
               var location = new OpenLayers.Geometry.Point(locationLonLat.lon, locationLonLat.lat);
               var nearestFeature = layer.features.filter((feature) => !feature.attributes.processed).reduce((prev, feature) => prev.geometry.distanceTo(location) > feature.geometry.distanceTo(location) ? feature : prev);
               // Fill in data and prepare for next click
               if (nearestFeature && nearestFeature.geometry.distanceTo(location) < 50) {
-                if (isNewHNLayout) {
-                  let setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                  setValue.call(numberInput, nearestFeature.data.number);
-                  // dispatch event so React sees the content as changed
-                  numberInput.dispatchEvent(new InputEvent('input', { 'bubbles': true }));
-                  numberInput.blur();
-                } else {
-                  numberInput.value = nearestFeature.data.number;
-                  // dispatch event so WME sees the content as changed
-                  numberInput.dispatchEvent(new Event('change', { 'bubbles': true }));
-                }
+                let setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                setValue.call(numberInput, nearestFeature.data.number);
+                // dispatch event so React sees the content as changed
+                numberInput.dispatchEvent(new InputEvent('input', { 'bubbles': true }));
+                numberInput.blur();
                 nearestFeature.attributes.processed = true;
                 layer.redraw();
                 editButtons.querySelector('.add-house-number').click();
@@ -201,7 +194,7 @@
           }
         }
       });
-      if (refreshProcessedState) {
+      if (changeTally != 0) {
         // Refresh the processed state when a house number gets removed
         var currentHouseNumbers = getSelectionHNs();
         layer.features.forEach((feature) => feature.attributes.processed = currentHouseNumbers.indexOf(feature.attributes.number) != -1);
