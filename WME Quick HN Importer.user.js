@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.7
+// @version      1.2.9
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @connect      www.wazebelgium.be
 // @grant        GM_xmlhttpRequest
+// @downloadURL https://update.greasyfork.org/scripts/421430/WME%20Quick%20HN%20Importer.user.js
+// @updateURL https://update.greasyfork.org/scripts/421430/WME%20Quick%20HN%20Importer.meta.js
 // ==/UserScript==
 
 /* global W, OpenLayers, I18n, require */
@@ -18,16 +20,12 @@
     if (e && e.user == null) {
       return;
     }
-    if (OpenLayers == null) {
-      setTimeout(init, 500);
-      log('OpenLayers object not yet available, page still loading');
-    }
     if (document.getElementById('user-info') == null) {
       setTimeout(init, 500);
       log('user-info element not yet available, page still loading');
       return;
     }
-    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || document.getElementById('primary-toolbar') == null) {
+    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || typeof OpenLayers === 'undefined' || document.getElementById('primary-toolbar') == null) {
       setTimeout(init, 300);
       return;
     }
@@ -96,7 +94,7 @@
       }
       loadingMessage.style.display = null;
       var bounds = null;
-      segmentSelection.segments.forEach((segment) => bounds == null ? bounds = segment.attributes.geometry.bounds : bounds.extend(segment.attributes.geometry.bounds));
+      segmentSelection.segments.forEach((segment) => bounds == null ? bounds = segment.attributes.geometry.getBounds() : bounds.extend(segment.attributes.geometry.getBounds()));
       GM_xmlhttpRequest({
         method: "GET",
         url: `https://www.wazebelgium.be/quick-hn-import/?left=${Math.floor(bounds.left - 200)}&top=${Math.floor(bounds.top + 200)}&right=${Math.floor(bounds.right + 200)}&bottom=${Math.floor(bounds.bottom - 200)}`,
