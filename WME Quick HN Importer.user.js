@@ -7,8 +7,6 @@
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @connect      www.wazebelgium.be
 // @grant        GM_xmlhttpRequest
-// @downloadURL https://update.greasyfork.org/scripts/421430/WME%20Quick%20HN%20Importer.user.js
-// @updateURL https://update.greasyfork.org/scripts/421430/WME%20Quick%20HN%20Importer.meta.js
 // ==/UserScript==
 
 /* global W, OpenLayers, I18n, require */
