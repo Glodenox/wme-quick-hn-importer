@@ -23,7 +23,7 @@
       log('user-info element not yet available, page still loading');
       return;
     }
-    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || typeof OpenLayers === 'undefined' || document.getElementById('primary-toolbar') == null) {
+    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || typeof OpenLayers === 'undefined' || document.getElementById('search') == null) {
       setTimeout(init, 300);
       return;
     }
@@ -127,7 +127,7 @@
       });
     };
 
-    var editButtons = document.getElementById('primary-toolbar');
+    var editButtons = document.getElementById('search').parentNode;
     var menuToggle = document.createElement('wz-checkbox');
     menuToggle.checked = false;
     menuToggle.style.display = 'none';
@@ -152,7 +152,7 @@
     }
     `);
     menuToggle.shadowRoot.adoptedStyleSheets.push(menuSheet);
-    editButtons.querySelector('#search').after(menuToggle);
+    document.getElementById('search').after(menuToggle);
 
     var houseNumbersLayer = null;
     // Observe the house number markers to automatically insert the data
