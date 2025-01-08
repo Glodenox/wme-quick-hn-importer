@@ -298,5 +298,5 @@ function log(message) {
 if (window.getWmeSdk) {
   init();
 } else {
-  document.addEventListener("wme-initialized", () => init(), { once: true });
+  document.addEventListener("wme-initialized", init, { once: true });
 }
