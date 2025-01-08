@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      1.2.10
+// @version      1.2.11
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -14,6 +14,10 @@
 (function() {
   'use strict';
 
+  function getUIHookElement() {
+    return document.getElementById('search-autocomplete');
+  }
+
   function init(e) {
     if (e && e.user == null) {
       return;
@@ -23,7 +27,7 @@
       log('user-info element not yet available, page still loading');
       return;
     }
-    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || typeof OpenLayers === 'undefined' || document.getElementById('search') == null) {
+    if (typeof W === 'undefined' || typeof W.loginManager === 'undefined' || typeof W.prefs === 'undefined' || typeof W.map === 'undefined' || typeof OpenLayers === 'undefined' || getUIHookElement() == null) {
       setTimeout(init, 300);
       return;
     }
@@ -127,7 +131,7 @@
       });
     };
 
-    var editButtons = document.getElementById('search').parentNode;
+    var editButtons = getUIHookElement().parentNode;
     var menuToggle = document.createElement('wz-checkbox');
     menuToggle.checked = false;
     menuToggle.style.display = 'none';
@@ -152,7 +156,7 @@
     }
     `);
     menuToggle.shadowRoot.adoptedStyleSheets.push(menuSheet);
-    document.getElementById('search').after(menuToggle);
+    getUIHookElement().after(menuToggle);
 
     var houseNumbersLayer = null;
     // Observe the house number markers to automatically insert the data
@@ -201,7 +205,7 @@
     // Observe house number mode to insert the "Quick HN Importer" checkbox
     var menuObserver = new MutationObserver(() => {
       if (editButtons.querySelector('.add-house-number') != null) {
-        document.getElementById('search').style.display = 'none';
+        getUIHookElement().style.display = 'none';
         menuToggle.style.display = 'inline-flex';
         houseNumbersLayer = document.querySelector('div.olLayerDiv.house-numbers-layer');
         houseNumberObserver.observe(houseNumbersLayer, { childList: true, subtree: true, attributes: true });
@@ -210,7 +214,7 @@
           layer.setVisibility(true);
         }
       } else {
-        document.getElementById('search').style.display = null;
+        getUIHookElement().style.display = null;
         menuToggle.style.display = 'none';
         layer.setVisibility(false);
         layer.removeAllFeatures();
