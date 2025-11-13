@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.0.1
+// @version      2.0.2
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -267,7 +267,7 @@ function init() {
     layerName: LAYER_NAME,
     styleContext: {
       fillColor: ({ feature }) => feature.properties && !streetNames.has(feature.properties.street) ? '#bb3333' : (selectedStreetNames.includes(feature.properties.street.toLowerCase()) ? '#99ee99' : '#fb9c4f'),
-      radius: ({ feature }) => feature.properties && feature.properties.number ? Math.max(feature.properties.number.length * 6, 10) : 10,
+      radius: ({ feature }) => feature.properties && feature.properties.number ? Math.max(feature.properties.number.length * 7, 12) : 12,
       opacity: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? 0.3 : 1,
       cursor: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? '' : 'pointer',
       title: ({ feature }) => feature.properties && feature.properties.number && feature.properties.street ? feature.properties.street + ' - ' + feature.properties.number : '',
@@ -285,6 +285,7 @@ function init() {
           strokeOpacity: '${opacity}',
           strokeWidth: 2,
           pointRadius: '${radius}',
+          graphicName: 'square',
           label: '${number}',
           cursor: '${cursor}',
           title: '${title}'
@@ -464,14 +465,15 @@ function updateLayer() {
 }
 
 function findNearestSegment(feature, matchName) {
-  let street = wmeSDK.DataModel.Streets.getAll().find(street => street.name.toLowerCase() == feature.properties.street.toLowerCase());
-  if (!matchName || street) {
-    return wmeSDK.DataModel.Segments.getAll()
-      .filter(segment => !matchName || segment.primaryStreetId == street.id || segment.alternateStreetIds?.includes(street.id))
+  let streetIds = wmeSDK.DataModel.Streets.getAll().filter(street => street.name.toLowerCase() == feature.properties.street.toLowerCase()).map(street => street.id);
+  if (!matchName || streetIds.length > 0) {
+    let nearestSegment = wmeSDK.DataModel.Segments.getAll()
+      .filter(segment => !matchName || streetIds.includes(segment.primaryStreetId) || streetIds.filter(streetId => segment.alternateStreetIds?.includes(streetId)).length > 0)
       .reduce((current, contender) => {
       contender.distance = turf.pointToLineDistance(feature.geometry, contender.geometry);
       return current.distance < contender.distance ? current : contender;
     }, { distance: Infinity });
+    return nearestSegment.distance == Infinity ? null : nearestSegment;
   }
   return null;
 }
