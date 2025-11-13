@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.0.0
+// @version      2.0.1
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -244,7 +244,6 @@ repository.addSource((left, bottom, right, top) => {
     return features;
   };
   let retrieveData = (startIndex) => {
-    console.log("Retrieving data", `https://service.pdok.nl/lv/bag/wfs/v2_0?service=wfs&version=2.0.0&request=GetFeature&typeNames=bag:verblijfsobject&outputFormat=application/json&srsName=EPSG:4326&bbox=${bbox.join(",")},EPSG:3857&count=1000&startIndex=${startIndex}`);
     return httpRequest({
       url: `https://service.pdok.nl/lv/bag/wfs/v2_0?service=wfs&version=2.0.0&request=GetFeature&typeNames=bag:verblijfsobject&outputFormat=application/json&srsName=EPSG:4326&bbox=${bbox.join(",")},EPSG:3857&count=1000&startIndex=${startIndex}`,
       context: startIndex
@@ -267,10 +266,10 @@ function init() {
   wmeSDK.Map.addLayer({
     layerName: LAYER_NAME,
     styleContext: {
-      fillColor: ({ feature }) => feature.properties && selectedStreetNames.includes(feature.properties.street) ? '#99ee99' : '#fa7a2f',
-      strokeColor: ({ feature }) => feature.properties && streetNames.has(feature.properties.street) ? '#ffffff' : '#bb3333',
+      fillColor: ({ feature }) => feature.properties && !streetNames.has(feature.properties.street) ? '#bb3333' : (selectedStreetNames.includes(feature.properties.street.toLowerCase()) ? '#99ee99' : '#fb9c4f'),
       radius: ({ feature }) => feature.properties && feature.properties.number ? Math.max(feature.properties.number.length * 6, 10) : 10,
-      opacity: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street) && streetNumbers.get(feature.properties.street).has(feature.properties.number) ? 0.3 : 1,
+      opacity: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? 0.3 : 1,
+      cursor: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? '' : 'pointer',
       title: ({ feature }) => feature.properties && feature.properties.number && feature.properties.street ? feature.properties.street + ' - ' + feature.properties.number : '',
       number: ({ feature }) => feature.properties && feature.properties.number ? feature.properties.number : ''
     },
@@ -282,12 +281,12 @@ function init() {
           fontColor: '#111111',
           fontOpacity: '${opacity}',
           fontWeight: 'bold',
-          strokeColor: '${strokeColor}',
+          strokeColor: '#ffffff',
           strokeOpacity: '${opacity}',
           strokeWidth: 2,
           pointRadius: '${radius}',
           label: '${number}',
-          cursor: 'pointer',
+          cursor: '${cursor}',
           title: '${title}'
         }
       }
@@ -318,31 +317,37 @@ function init() {
     eventName: "wme-layer-feature-clicked",
     eventHandler: (clickEvent) => {
       let feature = repository.lookup(clickEvent.featureId);
-      // Try to find nearest segment with name match to latch to
-      let nearestSegment = findNearestSegment(feature);
-      if (nearestSegment) {
-        wmeSDK.Editing.setSelection({
-          selection: {
-            ids: [ nearestSegment.id ],
-            objectType: "segment"
-          }
-        });
-      } else if (!confirm(`Street name "${feature.properties.street}" is unknown. Are you sure you want to add this house number here?`)) {
+      if (streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number)) {
         return;
       }
+      // Try to find nearest segment with name match to latch to
+      let nearestSegment = findNearestSegment(feature, true);
+      if (!nearestSegment) {
+        nearestSegment = findNearestSegment(feature, false);
+        let nearestStreetName = wmeSDK.DataModel.Streets.getById({ streetId: nearestSegment.primaryStreetId })?.name;
+        if (!confirm(`Street name "${feature.properties.street}" could not be found. Do you want to add this number to "${nearestStreetName}"?`)) {
+          return;
+        }
+      }
+      wmeSDK.Editing.setSelection({
+        selection: {
+          ids: [ nearestSegment.id ],
+          objectType: "segment"
+        }
+      });
       // Store house number
       wmeSDK.DataModel.HouseNumbers.addHouseNumber({
         number: feature.properties.number,
         point: feature.geometry,
-        segmentId: nearestSegment?.id
+        segmentId: nearestSegment.id
       });
       // Add to streetNumbers
-      let nameMatches = wmeSDK.DataModel.Streets.getAll().filter(street => street.name == feature.properties.street).length > 0;
+      let nameMatches = wmeSDK.DataModel.Streets.getAll().filter(street => street.name.toLowerCase() == feature.properties.street.toLowerCase()).length > 0;
       if (nameMatches) {
-        if (!streetNumbers.has(feature.properties.street)) {
-          streetNumbers.set(feature.properties.street, new Set());
+        if (!streetNumbers.has(feature.properties.street.toLowerCase())) {
+          streetNumbers.set(feature.properties.street.toLowerCase(), new Set());
         }
-        streetNumbers.get(feature.properties.street).add(feature.properties.number);
+        streetNumbers.get(feature.properties.street.toLowerCase()).add(feature.properties.number);
       }
       wmeSDK.Map.redrawLayer({ layerName: LAYER_NAME });
     }
@@ -363,11 +368,9 @@ function init() {
       if (!segmentSelection || segmentSelection.objectType != 'segment' || segmentSelection.ids.length == 0) {
         selectedStreetNames = [];
       } else {
-        selectedStreetNames = segmentSelection.ids
-          .map((segmentId) => wmeSDK.DataModel.Segments.getById({ segmentId: segmentId })?.primaryStreetId)
-          .filter(x => x)
-          .map((id) => wmeSDK.DataModel.Streets.getById({ streetId: id })?.name)
-          .filter(x => x);
+        let streetIds = [];
+        segmentSelection.ids.map((segmentId) => wmeSDK.DataModel.Segments.getById({ segmentId: segmentId })).filter(x => x).forEach((segment) => streetIds.push(segment.primaryStreetId, ...segment.alternateStreetIds));
+        selectedStreetNames = streetIds.filter(x => x).map((streetId) => wmeSDK.DataModel.Streets.getById({ streetId: streetId })?.name.toLowerCase()).filter(x => x);
       }
       updateLayer();
     }
@@ -392,10 +395,10 @@ function init() {
             return;
           }
           [ segment.primaryStreetId, ... segment.alternateStreetIds ].map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId }).name).forEach(streetName => {
-            if (!streetNumbers.has(streetName)) {
-              streetNumbers.set(streetName, new Set());
+            if (!streetNumbers.has(streetName.toLowerCase())) {
+              streetNumbers.set(streetName.toLowerCase(), new Set());
             }
-            streetNumbers.get(streetName).add(houseNumber);
+            streetNumbers.get(streetName.toLowerCase()).add(houseNumber);
           });
         });
       } else if (eventData.dataModelName == "streets") {
@@ -421,17 +424,17 @@ function init() {
             return;
           }
           [ segment.primaryStreetId, ... segment.alternateStreetIds ].map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId })?.name).forEach(streetName => {
-            if (!streetNumbers.has(streetName)) {
+            if (!streetNumbers.has(streetName.toLowerCase())) {
               return;
             }
-            streetNumbers.get(streetName)?.delete(houseNumber);
-            if (streetNumbers.get(streetName)?.delete(houseNumber).size == 0) {
-              streetNumbers.delete(streetName);
+            streetNumbers.get(streetName.toLowerCase())?.delete(houseNumber);
+            if (streetNumbers.get(streetName.toLowerCase())?.delete(houseNumber).size == 0) {
+              streetNumbers.delete(streetName.toLowerCase());
             }
           });
         });
       } else if (eventData.dataModelName == "streets") {
-        eventData.objectIds.map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId })).filter(x => x).forEach(street => streetNames.delete(street.name));
+        eventData.objectIds.map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId })).filter(x => x).forEach(street => streetNames.delete(street.name.toLowerCase()));
       }
     }
   });
@@ -460,11 +463,11 @@ function updateLayer() {
   });
 }
 
-function findNearestSegment(feature) {
-  let street = wmeSDK.DataModel.Streets.getAll().find(street => street.name == feature.properties.street);
-  if (street) {
+function findNearestSegment(feature, matchName) {
+  let street = wmeSDK.DataModel.Streets.getAll().find(street => street.name.toLowerCase() == feature.properties.street.toLowerCase());
+  if (!matchName || street) {
     return wmeSDK.DataModel.Segments.getAll()
-      .filter(segment => segment.primaryStreetId == street.id || segment.alternateStreetIds?.includes(street.id))
+      .filter(segment => !matchName || segment.primaryStreetId == street.id || segment.alternateStreetIds?.includes(street.id))
       .reduce((current, contender) => {
       contender.distance = turf.pointToLineDistance(feature.geometry, contender.geometry);
       return current.distance < contender.distance ? current : contender;
