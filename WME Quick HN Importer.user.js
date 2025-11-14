@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.0.2
+// @version      2.0.3
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -262,6 +262,25 @@ function init() {
   wmeSDK.Map.getMapViewportElement().appendChild(loadingMessage);
 
   previousCenterLocation = Object.values(wmeSDK.Map.getMapCenter());
+
+  // Fix OpenLayers bug where the title tag isn't included in square polygons
+  let svgRootContainer = document.querySelector("#WazeMap svg[id*='RootContainer']");
+  if (svgRootContainer) {
+    new MutationObserver((mutationList) => {
+      mutationList.forEach((mutation) => {
+        mutation.addedNodes.forEach((element) => {
+          if (element.nodeName == "svg" && element.getAttribute("title") != null && element.querySelector("title") == null) {
+            let title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+            title.textContent = element.getAttribute("title");
+            element.appendChild(title);
+          }
+        });
+      })
+    }).observe(svgRootContainer, {
+      childList: true,
+      subtree: true,
+    });
+  }
 
   wmeSDK.Map.addLayer({
     layerName: LAYER_NAME,
