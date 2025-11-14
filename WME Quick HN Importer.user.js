@@ -266,7 +266,7 @@ function init() {
   wmeSDK.Map.addLayer({
     layerName: LAYER_NAME,
     styleContext: {
-      fillColor: ({ feature }) => feature.properties && !streetNames.has(feature.properties.street) ? '#bb3333' : (selectedStreetNames.includes(feature.properties.street.toLowerCase()) ? '#99ee99' : '#fb9c4f'),
+      fillColor: ({ feature }) => feature.properties && !streetNames.has(feature.properties.street.toLowerCase()) ? '#bb3333' : (selectedStreetNames.includes(feature.properties.street.toLowerCase()) ? '#99ee99' : '#fb9c4f'),
       radius: ({ feature }) => feature.properties && feature.properties.number ? Math.max(feature.properties.number.length * 7, 12) : 12,
       opacity: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? 0.3 : 1,
       cursor: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? '' : 'pointer',
@@ -403,7 +403,7 @@ function init() {
           });
         });
       } else if (eventData.dataModelName == "streets") {
-        eventData.objectIds.map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId })).filter(x => x).forEach(street => streetNames.add(street.name));
+        eventData.objectIds.map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId })).filter(x => x).forEach(street => streetNames.add(street.name.toLowerCase()));
       }
       wmeSDK.Map.redrawLayer({ layerName: LAYER_NAME });
     }
