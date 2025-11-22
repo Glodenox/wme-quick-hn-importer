@@ -444,7 +444,7 @@ function init() {
             return;
           }
           [ segment.primaryStreetId, ... segment.alternateStreetIds ].map(streetId => wmeSDK.DataModel.Streets.getById({ streetId: streetId })?.name).forEach(streetName => {
-            if (!streetNumbers.has(streetName.toLowerCase())) {
+            if (streetName == null || !streetNumbers.has(streetName.toLowerCase())) {
               return;
             }
             streetNumbers.get(streetName.toLowerCase())?.delete(houseNumber);
