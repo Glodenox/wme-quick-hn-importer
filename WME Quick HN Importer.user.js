@@ -286,9 +286,9 @@ function init() {
     layerName: LAYER_NAME,
     styleContext: {
       fillColor: ({ feature }) => feature.properties && !streetNames.has(feature.properties.street.toLowerCase()) ? '#bb3333' : (selectedStreetNames.includes(feature.properties.street.toLowerCase()) ? '#99ee99' : '#fb9c4f'),
-      radius: ({ feature }) => feature.properties && feature.properties.number ? Math.max(feature.properties.number.length * 7, 12) : 12,
-      opacity: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? 0.3 : 1,
-      cursor: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number) ? '' : 'pointer',
+      radius: ({ feature }) => feature.properties && feature.properties.number ? Math.max(2 + feature.properties.number.length * 5, 12) : 12,
+      opacity: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(simplifyNumber(feature.properties.number)) ? 0.3 : 1,
+      cursor: ({ feature }) => feature.properties && streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(simplifyNumber(feature.properties.number)) ? '' : 'pointer',
       title: ({ feature }) => feature.properties && feature.properties.number && feature.properties.street ? feature.properties.street + ' - ' + feature.properties.number : '',
       number: ({ feature }) => feature.properties && feature.properties.number ? feature.properties.number : ''
     },
