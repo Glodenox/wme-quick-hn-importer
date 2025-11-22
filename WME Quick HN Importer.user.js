@@ -88,10 +88,10 @@ let repository = function() {
           features = features.concat(await getData(x, y));
         }
       }
-      // Remove duplicate street+number combinations (mostly boxes at the same location)
+      // Remove duplicate municipality+street+number combinations (mostly boxes at the same location)
       let processedHouseNumbers = new Set();
       return features.filter((feature) => {
-        let houseNumberKey = feature.properties.street + "|" + feature.properties.number;
+        let houseNumberKey = feature.properties.municipality + "|" + feature.properties.street + "|" + feature.properties.number;
         if (!processedHouseNumbers.has(houseNumberKey)) {
           processedHouseNumbers.add(houseNumberKey);
           return true;
