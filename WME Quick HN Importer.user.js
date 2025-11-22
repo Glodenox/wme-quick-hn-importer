@@ -337,7 +337,7 @@ function init() {
     eventName: "wme-layer-feature-clicked",
     eventHandler: (clickEvent) => {
       let feature = repository.lookup(clickEvent.featureId);
-      if (streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(feature.properties.number)) {
+      if (streetNumbers.has(feature.properties.street.toLowerCase()) && streetNumbers.get(feature.properties.street.toLowerCase()).has(simplifyNumber(feature.properties.number))) {
         return;
       }
       // Try to find nearest segment with name match to latch to
@@ -367,7 +367,7 @@ function init() {
         if (!streetNumbers.has(feature.properties.street.toLowerCase())) {
           streetNumbers.set(feature.properties.street.toLowerCase(), new Set());
         }
-        streetNumbers.get(feature.properties.street.toLowerCase()).add(feature.properties.number);
+        streetNumbers.get(feature.properties.street.toLowerCase()).add(simplifyNumber(feature.properties.number));
       }
       wmeSDK.Map.redrawLayer({ layerName: LAYER_NAME });
     }
@@ -418,7 +418,7 @@ function init() {
             if (!streetNumbers.has(streetName.toLowerCase())) {
               streetNumbers.set(streetName.toLowerCase(), new Set());
             }
-            streetNumbers.get(streetName.toLowerCase()).add(houseNumber);
+            streetNumbers.get(streetName.toLowerCase()).add(simplifyNumber(houseNumber));
           });
         });
       } else if (eventData.dataModelName == "streets") {
@@ -437,7 +437,7 @@ function init() {
             return;
           }
           let segmentId = segmentHouseNumber.substring(0, segmentHouseNumber.indexOf("/"));
-          let houseNumber = segmentHouseNumber.substring(segmentId.length + 1);
+          let houseNumber = simplifyNumber(segmentHouseNumber.substring(segmentId.length + 1));
           let segment = wmeSDK.DataModel.Segments.getById({ segmentId: Number(segmentId) });
           if (!segment) {
             log("Housenumber " + segmentHouseNumber + " could not be matched to segment via the API. Weird, but no blocker");
@@ -495,6 +495,10 @@ function findNearestSegment(feature, matchName) {
     return nearestSegment.distance == Infinity ? null : nearestSegment;
   }
   return null;
+}
+
+function simplifyNumber(number) {
+  return number.replace(/[\/-]/, "_");
 }
 
 function httpRequest(params, process) {
