@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.0.3
+// @version      2.0.4
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -11,10 +11,12 @@
 // @connect      geoservices-urbis.irisnet.be
 // @connect      geoservices.wallonie.be
 // @connect      service.pdok.nl
+// @connect      storitve.eprostor.gov.si
 // @require      https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.19.10/proj4.min.js
 // ==/UserScript==
 
-/* global getWmeSdk, turf */
+/* global getWmeSdk, turf, proj4 */
 
 
 let wmeSDK;
@@ -30,6 +32,8 @@ let previousCenterLocation = null;
 let selectedStreetNames = [];
 let streetNumbers = new Map();
 let streetNames = new Set();
+
+proj4.defs("EPSG:3794","+proj=tmerc +lat_0=0 +lon_0=15 +k=0.9999 +x_0=500000 +y_0=-5000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs");
 
 let repository = function() {
   let groups = [];
@@ -250,6 +254,33 @@ repository.addSource((left, bottom, right, top) => {
     }, parseData);
   };
   return retrieveData(0);
+});
+// Slovenia:
+repository.addSource((left, bottom, right, top) => {
+  let requestedPoly = turf.bboxPolygon([left, bottom, right, top]);
+  let regionPoly = turf.polygon([[[13.559654,45.463437],[13.568005,45.566997],[13.894686,45.631841],[13.546291,45.830907],[13.603082,45.954511],[13.442731,45.984577],[13.621456,46.168312],[13.410116,46.207981],[13.365897,46.300267],[13.731697,46.545804],[14.548483,46.418860],[14.850390,46.601135],[15.061953,46.649556],[15.458807,46.651034],[15.635975,46.717562],[15.934848,46.719517],[15.979947,46.843121],[16.278934,46.878198],[16.325338,46.839441],[16.526141,46.500705],[16.263947,46.515921],[16.285615,46.362069],[16.103550,46.370421],[16.048430,46.291915],[15.620828,46.174993],[15.697987,46.036209],[15.679289,45.820885],[15.286764,45.730688],[15.373769,45.640212],[15.268555,45.601662],[15.371951,45.455085],[15.144787,45.418338],[14.932656,45.506865],[14.820745,45.436712],[14.541802,45.627128],[14.423209,45.465107],[14.000618,45.471789],[13.889001,45.423636],[13.559654,45.463437]]]);
+  if (turf.booleanDisjoint(regionPoly, requestedPoly)) {
+    return new Promise((resolve, reject) => resolve([]));
+  }
+  let [slovLeft, slovBottom] = proj4("EPSG:4326", "EPSG:3794", [left, bottom]),
+      [slovRight, slovTop] = proj4("EPSG:4326", "EPSG:3794", [right, top]);
+  let extractComponent = (feature, componentName) => feature.properties.component.find(component => component["@href"].includes(componentName))["@title"];
+  return httpRequest({
+    url: `https://storitve.eprostor.gov.si/ows-ins-wfs/ows?service=wfs&version=2.0.0&request=GetFeature&typeNames=ad:Address&outputFormat=application/json&srsName=EPSG:3794&bbox=${slovLeft},${slovBottom},${slovRight},${slovTop},EPSG:3794`
+  }, (response) => {
+    let features = [];
+    response.response.features?.forEach((feature) => {
+      features.push(turf.point(proj4("EPSG:3794", "EPSG:4326", feature.properties.position.geometry.coordinates), {
+        street: extractComponent(feature, "ad:ThoroughfareName"),
+        number: feature.properties.locator.designator.designator,
+        municipality: extractComponent(feature, "ad:AddressAreaName"),
+        type: 'active'
+      }, {
+        id: feature.id,
+      }));
+    });
+    return features;
+  });
 });
 
 function init() {
