@@ -6,6 +6,7 @@ This userscript augments the [Waze Map Editor](https://www.waze.com/editor/) by 
 
 - Belgium
 - The Netherlands
+- Slovenia
 
 ## Installation instructions
 
