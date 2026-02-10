@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.1.0
+// @version      2.1.1
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -330,7 +330,7 @@ Repository.addSource((left, bottom, right, top) => {
         geometry: feature.geometry,
         properties: {
           street: cleanupName(feature.properties.openbare_ruimte),
-          number: feature.properties.huisnummer.toString(),
+          number: feature.properties.huisnummer + feature.properties.huisletter,
           municipality: feature.properties.woonplaats,
           type: 'active'
         }
