@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.1.3
+// @version      2.1.4
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -331,7 +331,7 @@ Repository.addSource((left, bottom, right, top) => {
         geometry: feature.geometry,
         properties: {
           street: cleanupName(feature.properties.openbare_ruimte),
-          number: feature.properties.huisnummer + feature.properties.huisletter + (feature.properties.huisletter == "" && feature.properties.toevoeging.length > 0 && !isNaN(feature.properties.toevoeging.charAt(0)) ? '-' : '') + feature.properties.toevoeging,
+          number: feature.properties.huisnummer + feature.properties.huisletter + (feature.properties.toevoeging.length > 0 && ((feature.properties.huisletter == "" && !isNaN(feature.properties.toevoeging.charAt(0))) || (feature.properties.huisletter != "" && isNaN(feature.properties.toevoeging.charAt(0)))) ? '-' : '') + feature.properties.toevoeging,
           municipality: feature.properties.woonplaats,
           type: 'active'
         }
@@ -639,7 +639,7 @@ function findNearestSegment(feature, matchName) {
 }
 
 function simplifyNumber(number) {
-  return number.replace(/[\/-]/, "_");
+  return number.replace(/[\/-]/, "_").toLowerCase();
 }
 
 function cleanupName(name) {
