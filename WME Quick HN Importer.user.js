@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME Quick HN Importer
 // @namespace    http://www.wazebelgium.be/
-// @version      2.1.4
+// @version      2.1.5
 // @description  Quickly add house numbers based on open data sources of house numbers
 // @author       Tom 'Glodenox' Puttemans
 // @include      /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -248,7 +248,7 @@ Repository.addSource((left, bottom, right, top) => {
         geometry: feature.geometry,
         properties: {
           street: feature.properties.Straatnaam,
-          number: feature.properties.Huisnummer,
+          number: feature.properties.Huisnummer.replaceAll("_", "/"),
           municipality: feature.properties.Gemeentenaam,
           type: TYPE_MAPPING.get(feature.properties.AdresStatus)
         }
@@ -504,18 +504,21 @@ function init() {
   });*/
   wmeSDK.Events.on({
     eventName: "wme-selection-changed",
-    eventHandler: () => {
-      let segmentSelection = wmeSDK.Editing.getSelection();
-      if (!segmentSelection || segmentSelection.objectType != 'segment' || segmentSelection.ids.length == 0) {
-        selectedStreetNames = [];
-      } else {
-        let streetIds = [];
-        segmentSelection.ids.map((segmentId) => wmeSDK.DataModel.Segments.getById({ segmentId: segmentId })).filter(x => x).forEach((segment) => streetIds.push(segment.primaryStreetId, ...segment.alternateStreetIds));
-        selectedStreetNames = streetIds.filter(x => x).map((streetId) => wmeSDK.DataModel.Streets.getById({ streetId: streetId })?.name.toLowerCase()).filter(x => x);
-      }
-      updateLayer();
-    }
+    eventHandler: updateSelectedStreets
   });
+  updateSelectedStreets();
+  function updateSelectedStreets() {
+    let segmentSelection = wmeSDK.Editing.getSelection();
+    if (!segmentSelection || segmentSelection.objectType != 'segment' || segmentSelection.ids.length == 0) {
+      selectedStreetNames = [];
+    } else {
+      let streetIds = [];
+      segmentSelection.ids.map((segmentId) => wmeSDK.DataModel.Segments.getById({ segmentId: segmentId })).filter(x => x).forEach((segment) => streetIds.push(segment.primaryStreetId, ...segment.alternateStreetIds));
+      selectedStreetNames = streetIds.filter(x => x).map((streetId) => wmeSDK.DataModel.Streets.getById({ streetId: streetId })?.name.toLowerCase()).filter(x => x);
+    }
+    updateLayer();
+  }
+
   // House number tracking
   wmeSDK.Events.trackDataModelEvents({ dataModelName: "segmentHouseNumbers" });
   wmeSDK.Events.trackDataModelEvents({ dataModelName: "streets" });
